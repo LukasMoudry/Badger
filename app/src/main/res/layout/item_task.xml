@@ -22,11 +22,14 @@
         android:paddingStart="8dp"
         android:textSize="14sp"/>
 
-    <!-- Delete button -->
-    <Button
+    <!-- Delete icon -->
+    <ImageButton
         android:id="@+id/deleteBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:text="Delete"/>
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/delete_task"
+        android:tint="@android:color/holo_red_dark"/>
 </LinearLayout>

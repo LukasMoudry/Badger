@@ -3,7 +3,7 @@ package com.example.badger
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -19,7 +19,7 @@ class TaskAdapter(
     inner class VH(view: View) : RecyclerView.ViewHolder(view) {
         val nameTv: TextView = view.findViewById(R.id.nameTv)
         val timeTv: TextView = view.findViewById(R.id.timeTv)
-        private val delBtn: Button = view.findViewById(R.id.deleteBtn)
+        private val delBtn: ImageButton = view.findViewById(R.id.deleteBtn)
 
         init {
             view.setOnClickListener {
@@ -47,14 +47,6 @@ class TaskAdapter(
         val task = getItem(position)
         holder.nameTv.text = task.name
 
-        // 12-hour conversion + English labels
-        val hour12 = when (val h = task.hour % 12) {
-            0    -> 12
-            else -> h
-        }
-        val minute = task.minute
-        val amPm   = if (task.hour < 12) "morning" else "afternoon"
-
         // Day-of-week short name
         val dayName = when (task.dayOfWeek) {
             Calendar.MONDAY    -> "Mon"
@@ -67,7 +59,15 @@ class TaskAdapter(
             else               -> ""
         }
 
-        holder.timeTv.text = String.format("%s %02d:%02d %s",
-            dayName, hour12, minute, amPm)
+        // 24-hour time format
+        val hour24 = task.hour
+        val minute = task.minute
+
+        holder.timeTv.text = String.format(
+            "%s %02d:%02d",
+            dayName,
+            hour24,
+            minute
+        )
     }
 }

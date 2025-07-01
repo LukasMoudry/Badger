@@ -81,12 +81,19 @@ class MainActivity : AppCompatActivity() {
         reloadListAndSchedule()
 
         // 6) Register broadcast receiver for deletions (app-only)
-        registerReceiver(
-            onTaskDeleted,
-            IntentFilter(ActionReceiver.ACTION_TASK_DELETED),
-            Context.RECEIVER_NOT_EXPORTED
-        )
-    }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(
+                onTaskDeleted,
+                IntentFilter(ActionReceiver.ACTION_TASK_DELETED),
+                Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            registerReceiver(
+                onTaskDeleted,
+                IntentFilter(ActionReceiver.ACTION_TASK_DELETED)
+            )
+        }
+    }  // ← Added this closing brace to end onCreate
 
     override fun onDestroy() {
         super.onDestroy()
