@@ -1,0 +1,613 @@
+=== badger\ActionReceiver.kt ===
+package com.example.badger
+
+import android.app.NotificationManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import java.util.*
+
+class ActionReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        val id   = intent.getIntExtra("taskId", -1)
+        val done = intent.getBooleanExtra("done", false)
+        if (id < 0 || !done) return  // only handle “Yes”
+
+        (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .cancel(id)
+
+        val tasks = PrefsHelper.loadTasks(ctx)
+        val task  = tasks.find { it.id == id } ?: return
+
+        // schedule next week
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_WEEK, task.dayOfWeek)
+            set(Calendar.HOUR_OF_DAY, task.hour)
+            set(Calendar.MINUTE, task.minute)
+            set(Calendar.SECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) {
+                add(Calendar.WEEK_OF_YEAR, 1)
+            }
+        }
+        task.nextAskEpoch = cal.timeInMillis
+
+        PrefsHelper.saveTasks(ctx, tasks)
+        AlarmScheduler.schedule(task, ctx)
+    }
+}
+
+
+=== badger\AddTaskActivity.kt ===
+package com.example.badger
+
+import android.os.Build
+import android.os.Bundle
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.EditText
+import android.widget.Spinner
+import android.widget.TimePicker
+import androidx.appcompat.app.AppCompatActivity
+import java.util.Calendar
+
+class AddTaskActivity : AppCompatActivity() {
+    companion object {
+        const val EXTRA_TASK_ID = "task_id"
+    }
+
+    // Renamed to match your XML ID "nameEt"
+    private lateinit var nameEt: EditText
+    private lateinit var daySpinner: Spinner
+    private lateinit var timePicker: TimePicker
+    private lateinit var saveBtn: Button
+
+    private val tasks = mutableListOf<Task>()
+    private var editingTask: Task? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_add_task)
+
+        // -- View binding: use R.id.nameEt, not nameEdit
+        nameEt     = findViewById(R.id.nameEt)
+        daySpinner = findViewById(R.id.daySpinner)
+        timePicker = findViewById(R.id.timePicker)
+        saveBtn    = findViewById(R.id.saveBtn)
+
+        // Spinner with Monday first
+        val days = listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
+        daySpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, days)
+
+        // 24-hour spinner mode
+        timePicker.setIs24HourView(true)
+
+        // Load existing
+        tasks.addAll(PrefsHelper.loadTasks(this))
+
+        // Check for edit
+        val tid = intent.getIntExtra(EXTRA_TASK_ID, -1)
+        if (tid >= 0) editingTask = tasks.find { it.id == tid }
+
+        // Pre-fill fields
+        val now = Calendar.getInstance()
+        val todayIdx = (now.get(Calendar.DAY_OF_WEEK) + 5) % 7  // MON→0…SUN→6
+
+        if (editingTask == null) {
+            // New: default to now
+            daySpinner.setSelection(todayIdx)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                timePicker.hour   = now.get(Calendar.HOUR_OF_DAY)
+                timePicker.minute = now.get(Calendar.MINUTE)
+            } else {
+                @Suppress("DEPRECATION")
+                timePicker.currentHour   = now.get(Calendar.HOUR_OF_DAY)
+                @Suppress("DEPRECATION")
+                timePicker.currentMinute = now.get(Calendar.MINUTE)
+            }
+        } else {
+            // Editing: fill from task
+            editingTask!!.let { t ->
+                nameEt.setText(t.name)
+                val idx = (t.dayOfWeek + 5) % 7
+                daySpinner.setSelection(idx)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    timePicker.hour   = t.hour
+                    timePicker.minute = t.minute
+                } else {
+                    @Suppress("DEPRECATION")
+                    timePicker.currentHour   = t.hour
+                    @Suppress("DEPRECATION")
+                    timePicker.currentMinute = t.minute
+                }
+            }
+        }
+
+        saveBtn.setOnClickListener {
+            val name = nameEt.text.toString().trim()
+            if (name.isEmpty()) {
+                nameEt.error = "Enter a name"
+                return@setOnClickListener
+            }
+
+            // Spinner to Calendar day
+            val customDay = daySpinner.selectedItemPosition + 1
+            val calendarDay = if (customDay == 7) Calendar.SUNDAY
+            else Calendar.MONDAY + (customDay - 1)
+
+            // Read time
+            val (h, m) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                timePicker.hour to timePicker.minute
+            } else {
+                @Suppress("DEPRECATION")
+                timePicker.currentHour to
+                        @Suppress("DEPRECATION")
+                        timePicker.currentMinute
+            }
+
+            // Compute nextAskEpoch
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_WEEK, calendarDay)
+                set(Calendar.HOUR_OF_DAY, h)
+                set(Calendar.MINUTE, m)
+                set(Calendar.SECOND, 0)
+                if (timeInMillis <= System.currentTimeMillis()) {
+                    add(Calendar.WEEK_OF_YEAR, 1)
+                }
+            }
+            val nextEpoch = cal.timeInMillis
+
+            if (editingTask == null) {
+                // Create new
+                val newId = (tasks.maxOfOrNull { it.id } ?: -1) + 1
+                val t = Task(newId, name, calendarDay, h, m, nextEpoch)
+                tasks.add(t)
+                AlarmScheduler.schedule(t, this)
+            } else {
+                // Update existing
+                editingTask!!.also { t ->
+                    AlarmScheduler.cancel(t, this)
+                    t.name         = name
+                    t.dayOfWeek    = calendarDay
+                    t.hour         = h
+                    t.minute       = m
+                    t.nextAskEpoch = nextEpoch
+                    AlarmScheduler.schedule(t, this)
+                }
+            }
+
+            PrefsHelper.saveTasks(this, tasks)
+            finish()
+        }
+    }
+}
+
+
+=== badger\AlarmReceiver.kt ===
+package com.example.badger
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+
+class AlarmReceiver : BroadcastReceiver() {
+    companion object {
+        private const val CHANNEL_ID = "badger_channel"
+        private const val TAG = "AlarmReceiver"
+    }
+
+    override fun onReceive(ctx: Context, intent: Intent) {
+        // 1) Pull the "taskId" extra
+        val id = intent.getIntExtra("taskId", -1)
+        if (id < 0) return
+
+        Log.d(TAG, "onReceive fired for taskId=$id")
+
+        // 2) Load the task by ID
+        val task = PrefsHelper.loadTasks(ctx).find { it.id == id } ?: return
+
+        // 3) Create NotificationChannel on O+
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Badger reminders",
+                    NotificationManager.IMPORTANCE_HIGH
+                )
+            )
+        }
+
+        // 4) Build and show the notification with actions
+        NotificationManagerCompat.from(ctx)
+            .notify(
+                id,
+                NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                    .setContentTitle("Did you do “${task.name}”?")
+                    .addAction(
+                        0, "Yes",
+                        PendingIntent.getBroadcast(
+                            ctx,
+                            id * 10 + 1,
+                            Intent(ctx, ActionReceiver::class.java)
+                                .putExtra("taskId", id)
+                                .putExtra("done", true),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
+                    .addAction(
+                        0, "Not yet",
+                        PendingIntent.getActivity(
+                            ctx,
+                            id * 10 + 2,
+                            Intent(ctx, RescheduleActivity::class.java)
+                                .putExtra("taskId", id),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
+                    .setAutoCancel(true)
+                    .build()
+            )
+    }
+}
+
+
+=== badger\AlarmScheduler.kt ===
+package com.example.badger
+
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
+
+object AlarmScheduler {
+    private const val ALARM_REQUEST_CODE = 1000
+    private const val TAG = "AlarmScheduler"
+
+    fun schedule(task: Task, ctx: Context) {
+        val alarmMgr = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(ctx, AlarmReceiver::class.java).apply {
+            putExtra("taskId", task.id)  // must match getIntExtra("taskId", ...) in AlarmReceiver
+        }
+        val flags =
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                        PendingIntent.FLAG_IMMUTABLE else 0
+
+        val pending = PendingIntent.getBroadcast(
+            ctx,
+            ALARM_REQUEST_CODE + task.id,
+            intent,
+            flags
+        )
+
+        // Try exact + wakeup (requires exact-alarm permission). If denied, fall back to inexact.
+        try {
+            alarmMgr.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                task.nextAskEpoch,
+                pending
+            )
+        } catch (sec: SecurityException) {
+            Log.w(TAG, "Exact alarm denied; falling back to inexact", sec)
+            alarmMgr.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                task.nextAskEpoch,
+                pending
+            )
+        }
+    }
+
+    fun cancel(task: Task, ctx: Context) {
+        val alarmMgr = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(ctx, AlarmReceiver::class.java).apply {
+            putExtra("taskId", task.id)
+        }
+        val flags =
+            PendingIntent.FLAG_NO_CREATE or
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                        PendingIntent.FLAG_IMMUTABLE else 0
+
+        val pending = PendingIntent.getBroadcast(
+            ctx,
+            ALARM_REQUEST_CODE + task.id,
+            intent,
+            flags
+        )
+        if (pending != null) {
+            alarmMgr.cancel(pending)
+            pending.cancel()
+        }
+    }
+}
+
+
+=== badger\MainActivity.kt ===
+package com.example.badger
+
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+
+class MainActivity : AppCompatActivity() {
+    private lateinit var adapter: TaskAdapter
+
+    // Permission launcher for POST_NOTIFICATIONS on Android 13+
+    private val askNotifPerm = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* no-op if denied */ }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContentView(R.layout.activity_main)
+
+        // 1) Edge-to-edge padding on the CoordinatorLayout
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.coordinator)) { v, insets ->
+            val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(sys.left, sys.top, sys.right, sys.bottom)
+            insets
+        }
+
+        // 2) RecyclerView + adapter
+        val rv = findViewById<RecyclerView>(R.id.recycler).apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+        }
+        adapter = TaskAdapter(
+            onItemClick = { task ->
+                // EDIT existing
+                startActivity(Intent(this, AddTaskActivity::class.java).apply {
+                    putExtra(AddTaskActivity.EXTRA_TASK_ID, task.id)
+                })
+            },
+            onItemAction = { task, action ->
+                if (action == TaskAdapter.Action.DELETE) {
+                    // DELETE handling
+                    AlarmScheduler.cancel(task, this)
+                    val remaining = PrefsHelper.loadTasks(this)
+                        .filterNot { it.id == task.id }
+                    PrefsHelper.saveTasks(this, remaining)
+                    adapter.submitList(remaining)
+                }
+            }
+        )
+        rv.adapter = adapter
+
+        // 3) FAB for adding new
+        findViewById<FloatingActionButton>(R.id.addBtn).setOnClickListener {
+            startActivity(Intent(this, AddTaskActivity::class.java))
+        }
+
+        // 4) Ask POST_NOTIFICATIONS permission if needed
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            askNotifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // 5) Load & schedule
+        reloadListAndSchedule()
+    }
+
+    private fun reloadListAndSchedule() {
+        val list = PrefsHelper.loadTasks(this)
+        adapter.submitList(list)
+        list.forEach { AlarmScheduler.schedule(it, this) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        reloadListAndSchedule()
+    }
+}
+
+
+=== badger\PrefsHelper.kt ===
+package com.example.badger
+
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
+object PrefsHelper {
+    private const val PREFS_NAME = "badger_prefs"
+    private const val KEY_TASKS = "tasks"
+
+    private val gson = Gson()
+    private val listType = object : TypeToken<MutableList<Task>>() {}.type
+
+    fun loadTasks(ctx: Context): MutableList<Task> {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_TASKS, null) ?: return mutableListOf()
+        return gson.fromJson(json, listType)
+    }
+
+    fun saveTasks(ctx: Context, tasks: List<Task>) {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_TASKS, gson.toJson(tasks))
+            .apply()
+    }
+}
+
+
+=== badger\RescheduleActivity.kt ===
+package com.example.badger
+
+import android.os.Build
+import android.os.Bundle
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.Spinner
+import android.widget.TimePicker
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import java.util.*
+
+class RescheduleActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContentView(R.layout.activity_reschedule)
+
+        val taskId = intent.getIntExtra("taskId", -1)
+        if (taskId < 0) finish()
+
+        val daySpinner = findViewById<Spinner>(R.id.daySpinner)
+        val timePicker = findViewById<TimePicker>(R.id.timePicker)
+        val saveBtn    = findViewById<Button>(R.id.saveBtn)
+
+        val days = listOf(
+            "Sunday","Monday","Tuesday","Wednesday",
+            "Thursday","Friday","Saturday"
+        )
+        daySpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            days
+        )
+
+        saveBtn.setOnClickListener {
+            val dayIndex = daySpinner.selectedItemPosition + Calendar.SUNDAY
+            val hour = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                timePicker.hour else @Suppress("DEPRECATION") timePicker.currentHour
+            val minute = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                timePicker.minute else @Suppress("DEPRECATION") timePicker.currentMinute
+
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_WEEK, dayIndex)
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+                set(Calendar.SECOND, 0)
+                if (timeInMillis <= System.currentTimeMillis()) {
+                    add(Calendar.WEEK_OF_YEAR, 1)
+                }
+            }
+
+            val tasks = PrefsHelper.loadTasks(this)
+            val task = tasks.find { it.id == taskId } ?: return@setOnClickListener
+            task.nextAskEpoch = cal.timeInMillis
+            PrefsHelper.saveTasks(this, tasks)
+            AlarmScheduler.schedule(task, this)
+            finish()
+        }
+    }
+}
+
+
+=== badger\Task.kt ===
+package com.example.badger
+
+data class Task(
+    val id: Int,            // unique ID
+    var name: String,       // user‐entered name
+    var dayOfWeek: Int,     // Calendar.MONDAY=2 … Calendar.SUNDAY=1
+    var hour: Int,          // 0–23
+    var minute: Int,        // 0–59
+    var nextAskEpoch: Long  // ms since epoch of next alarm
+)
+
+
+=== badger\TaskAdapter.kt ===
+package com.example.badger
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.TextView
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import java.util.Calendar
+
+class TaskAdapter(
+    private val onItemClick: (Task) -> Unit,
+    private val onItemAction: (Task, Action) -> Unit
+) : ListAdapter<Task, TaskAdapter.VH>(TaskDiffCallback()) {
+
+    enum class Action { DELETE }
+
+    inner class VH(view: View) : RecyclerView.ViewHolder(view) {
+        val nameTv: TextView = view.findViewById(R.id.nameTv)
+        val timeTv: TextView = view.findViewById(R.id.timeTv)
+        private val delBtn: Button = view.findViewById(R.id.deleteBtn)
+
+        init {
+            view.setOnClickListener {
+                val pos = adapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onItemClick(getItem(pos))
+                }
+            }
+            delBtn.setOnClickListener {
+                val pos = adapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onItemAction(getItem(pos), Action.DELETE)
+                }
+            }
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val v = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_task, parent, false)
+        return VH(v)
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val task = getItem(position)
+        holder.nameTv.text = task.name
+
+        // 12-hour conversion + English labels
+        val hour12 = when (val h = task.hour % 12) {
+            0    -> 12
+            else -> h
+        }
+        val minute = task.minute
+        val amPm   = if (task.hour < 12) "morning" else "afternoon"
+
+        // Day-of-week short name
+        val dayName = when (task.dayOfWeek) {
+            Calendar.MONDAY    -> "Mon"
+            Calendar.TUESDAY   -> "Tue"
+            Calendar.WEDNESDAY -> "Wed"
+            Calendar.THURSDAY  -> "Thu"
+            Calendar.FRIDAY    -> "Fri"
+            Calendar.SATURDAY  -> "Sat"
+            Calendar.SUNDAY    -> "Sun"
+            else               -> ""
+        }
+
+        holder.timeTv.text = String.format("%s %02d:%02d %s",
+            dayName, hour12, minute, amPm)
+    }
+}
+
+
+=== badger\TaskDiffCallback.kt ===
+package com.example.badger
+
+import androidx.recyclerview.widget.DiffUtil
+
+class TaskDiffCallback : DiffUtil.ItemCallback<Task>() {
+    override fun areItemsTheSame(a: Task, b: Task) = a.id == b.id
+    override fun areContentsTheSame(a: Task, b: Task) = a == b
+}
+
+
