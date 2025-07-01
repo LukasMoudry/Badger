@@ -2,9 +2,11 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/coordinator"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- 1) This is your list of tasks -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler"
         android:layout_width="match_parent"
@@ -12,13 +14,15 @@
         android:padding="16dp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
 
+    <!-- 2) FAB is NOW anchored to the RecyclerView (not to the parent) -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/addBtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="12dp"
-        android:layout_marginBottom="52dp"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="32dp"
+        app:layout_anchor="@id/recycler"
+        app:layout_anchorGravity="bottom|end"
         app:srcCompat="@android:drawable/ic_input_add"/>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
