@@ -1,7 +1,10 @@
 package com.example.badger
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
@@ -20,6 +23,13 @@ class MainActivity : AppCompatActivity() {
     private val askNotifPerm = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op if denied */ }
+
+    // Receiver to catch “task deleted” broadcasts and refresh UI
+    private val onTaskDeleted = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            reloadListAndSchedule()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +77,25 @@ class MainActivity : AppCompatActivity() {
             askNotifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        // 5) Load & schedule
+        // 5) Load, schedule, and show tasks
+        reloadListAndSchedule()
+
+        // 6) Register broadcast receiver for deletions (app-only)
+        registerReceiver(
+            onTaskDeleted,
+            IntentFilter(ActionReceiver.ACTION_TASK_DELETED),
+            Context.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Unregister our deletion listener
+        unregisterReceiver(onTaskDeleted)
+    }
+
+    override fun onResume() {
+        super.onResume()
         reloadListAndSchedule()
     }
 
@@ -75,10 +103,5 @@ class MainActivity : AppCompatActivity() {
         val list = PrefsHelper.loadTasks(this)
         adapter.submitList(list)
         list.forEach { AlarmScheduler.schedule(it, this) }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        reloadListAndSchedule()
     }
 }

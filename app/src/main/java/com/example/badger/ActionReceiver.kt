@@ -1,36 +1,40 @@
 package com.example.badger
 
-import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import java.util.*
+import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 
 class ActionReceiver : BroadcastReceiver() {
+    companion object {
+        // custom action for in‐app updates
+        const val ACTION_TASK_DELETED = "com.example.badger.ACTION_TASK_DELETED"
+    }
+
     override fun onReceive(ctx: Context, intent: Intent) {
+        // 1) Pull extras
         val id   = intent.getIntExtra("taskId", -1)
         val done = intent.getBooleanExtra("done", false)
-        if (id < 0 || !done) return  // only handle “Yes”
 
-        (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .cancel(id)
+        // 2) Log to confirm we got here
+        Log.d("ActionReceiver", "✓ onReceive: id=$id done=$done")
 
+        // 3) Only handle the “Yes” tap
+        if (id < 0 || !done) return
+
+        // 4) Cancel the notification
+        NotificationManagerCompat.from(ctx).cancel(id)
+
+        // 5) Load, cancel alarm, remove from prefs
         val tasks = PrefsHelper.loadTasks(ctx)
         val task  = tasks.find { it.id == id } ?: return
 
-        // schedule next week
-        val cal = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_WEEK, task.dayOfWeek)
-            set(Calendar.HOUR_OF_DAY, task.hour)
-            set(Calendar.MINUTE, task.minute)
-            set(Calendar.SECOND, 0)
-            if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.WEEK_OF_YEAR, 1)
-            }
-        }
-        task.nextAskEpoch = cal.timeInMillis
+        AlarmScheduler.cancel(task, ctx)
+        val updated = tasks.filterNot { it.id == id }
+        PrefsHelper.saveTasks(ctx, updated)
 
-        PrefsHelper.saveTasks(ctx, tasks)
-        AlarmScheduler.schedule(task, ctx)
+        // 6) Notify any in‐app listeners so they can refresh
+        ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
     }
 }
