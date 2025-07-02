@@ -9,6 +9,7 @@ import android.widget.TextView
 import android.widget.TimePicker
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationManagerCompat
 import java.util.Calendar
 
 class RescheduleActivity : AppCompatActivity() {
@@ -17,6 +18,12 @@ class RescheduleActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_reschedule)
 
+        // 0) Dismiss the original notification
+        val taskId = intent.getIntExtra("taskId", -1)
+        if (taskId >= 0) {
+            NotificationManagerCompat.from(this).cancel(taskId)
+        }
+
         // 1) Find views
         val taskNameTv  = findViewById<TextView>(R.id.taskNameTv)
         val daySpinner  = findViewById<Spinner>(R.id.daySpinner)
@@ -24,7 +31,6 @@ class RescheduleActivity : AppCompatActivity() {
         val saveBtn     = findViewById<Button>(R.id.saveBtn)
 
         // 2) Load task
-        val taskId = intent.getIntExtra("taskId", -1)
         val tasks  = PrefsHelper.loadTasks(this)
         val task   = tasks.find { it.id == taskId } ?: run {
             finish()
