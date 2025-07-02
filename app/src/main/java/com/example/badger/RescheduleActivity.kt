@@ -40,7 +40,7 @@ class RescheduleActivity : AppCompatActivity() {
         // 3) Show its name
         taskNameTv.text = task.name
 
-        // 4) Spinner with Monday first (same as AddTaskActivity)
+        // 4) Spinner with Monday first
         val days = listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
         daySpinner.adapter = ArrayAdapter(
             this,
@@ -48,12 +48,11 @@ class RescheduleActivity : AppCompatActivity() {
             days
         )
 
-        // 5) Pre-select the current day index
-        //    Convert Calendar.MONDAY=2…SUNDAY=1 into 0…6
+        // 5) Pre-select day index
         val idx = (task.dayOfWeek + 5) % 7
         daySpinner.setSelection(idx)
 
-        // 6) 24-hour mode TimePicker
+        // 6) 24-hour TimePicker
         timePicker.setIs24HourView(true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             timePicker.hour   = task.hour
@@ -65,16 +64,14 @@ class RescheduleActivity : AppCompatActivity() {
             timePicker.currentMinute = task.minute
         }
 
-        // 7) Save button: update nextAskEpoch just like AddTaskActivity
+        // 7) Save – compute nextAskEpoch exactly as in AddTaskActivity
         saveBtn.setOnClickListener {
-            // Map spinner position back to Calendar day
             val customDay   = daySpinner.selectedItemPosition + 1
             val calendarDay = if (customDay == 7)
                 Calendar.SUNDAY
             else
                 Calendar.MONDAY + (customDay - 1)
 
-            // Read time
             val (h, m) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 timePicker.hour to timePicker.minute
             } else {
@@ -84,7 +81,6 @@ class RescheduleActivity : AppCompatActivity() {
                         timePicker.currentMinute
             }
 
-            // Compute nextAskEpoch
             val cal = Calendar.getInstance().apply {
                 set(Calendar.DAY_OF_WEEK, calendarDay)
                 set(Calendar.HOUR_OF_DAY, h)
@@ -99,7 +95,6 @@ class RescheduleActivity : AppCompatActivity() {
             task.hour         = h
             task.minute       = m
 
-            // Save & schedule
             PrefsHelper.saveTasks(this, tasks)
             AlarmScheduler.schedule(task, this)
             finish()

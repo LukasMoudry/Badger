@@ -14,20 +14,30 @@ class TaskAdapter(
     private val onItemAction: (Task, Action) -> Unit
 ) : ListAdapter<Task, TaskAdapter.VH>(TaskDiffCallback()) {
 
-    enum class Action { DELETE }
+    enum class Action { DELETE, EDIT }
 
     inner class VH(view: View) : RecyclerView.ViewHolder(view) {
         val nameTv: TextView = view.findViewById(R.id.nameTv)
         val timeTv: TextView = view.findViewById(R.id.timeTv)
+        private val editBtn: ImageButton = view.findViewById(R.id.editBtn)
         private val delBtn: ImageButton = view.findViewById(R.id.deleteBtn)
 
         init {
+            // full‐row click still edits
             view.setOnClickListener {
                 val pos = adapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
                     onItemClick(getItem(pos))
                 }
             }
+            // edit button
+            editBtn.setOnClickListener {
+                val pos = adapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onItemAction(getItem(pos), Action.EDIT)
+                }
+            }
+            // delete button
             delBtn.setOnClickListener {
                 val pos = adapterPosition
                 if (pos != RecyclerView.NO_POSITION) {
@@ -47,7 +57,7 @@ class TaskAdapter(
         val task = getItem(position)
         holder.nameTv.text = task.name
 
-        // Day-of-week short name
+        // short day name
         val dayName = when (task.dayOfWeek) {
             Calendar.MONDAY    -> "Mon"
             Calendar.TUESDAY   -> "Tue"
@@ -59,15 +69,11 @@ class TaskAdapter(
             else               -> ""
         }
 
-        // 24-hour time format
-        val hour24 = task.hour
-        val minute = task.minute
-
         holder.timeTv.text = String.format(
             "%s %02d:%02d",
             dayName,
-            hour24,
-            minute
+            task.hour,
+            task.minute
         )
     }
 }

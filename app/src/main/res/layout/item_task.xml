@@ -22,6 +22,16 @@
         android:paddingStart="8dp"
         android:textSize="14sp"/>
 
+    <!-- Edit icon -->
+    <ImageButton
+        android:id="@+id/editBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:src="@android:drawable/ic_menu_edit"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Edit task"/>
+
     <!-- Delete icon -->
     <ImageButton
         android:id="@+id/deleteBtn"

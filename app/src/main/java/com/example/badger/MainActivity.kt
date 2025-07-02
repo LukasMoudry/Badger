@@ -36,7 +36,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // 1) Edge-to-edge padding on the CoordinatorLayout
+        // 1) Edge-to-edge padding
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.coordinator)) { v, insets ->
             val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(sys.left, sys.top, sys.right, sys.bottom)
@@ -49,19 +49,27 @@ class MainActivity : AppCompatActivity() {
         }
         adapter = TaskAdapter(
             onItemClick = { task ->
-                // EDIT existing
+                // edit via row tap
                 startActivity(Intent(this, AddTaskActivity::class.java).apply {
                     putExtra(AddTaskActivity.EXTRA_TASK_ID, task.id)
                 })
             },
             onItemAction = { task, action ->
-                if (action == TaskAdapter.Action.DELETE) {
-                    // DELETE handling
-                    AlarmScheduler.cancel(task, this)
-                    val remaining = PrefsHelper.loadTasks(this)
-                        .filterNot { it.id == task.id }
-                    PrefsHelper.saveTasks(this, remaining)
-                    adapter.submitList(remaining)
+                when (action) {
+                    TaskAdapter.Action.DELETE -> {
+                        // DELETE
+                        AlarmScheduler.cancel(task, this)
+                        val remaining = PrefsHelper.loadTasks(this)
+                            .filterNot { it.id == task.id }
+                        PrefsHelper.saveTasks(this, remaining)
+                        adapter.submitList(remaining)
+                    }
+                    TaskAdapter.Action.EDIT -> {
+                        // EDIT via edit button
+                        startActivity(Intent(this, AddTaskActivity::class.java).apply {
+                            putExtra(AddTaskActivity.EXTRA_TASK_ID, task.id)
+                        })
+                    }
                 }
             }
         )
@@ -72,15 +80,15 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, AddTaskActivity::class.java))
         }
 
-        // 4) Ask POST_NOTIFICATIONS permission if needed
+        // 4) Ask POST_NOTIFICATIONS if needed
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             askNotifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        // 5) Load, schedule, and show tasks
+        // 5) Load, schedule, show
         reloadListAndSchedule()
 
-        // 6) Register broadcast receiver for deletions (app-only)
+        // 6) Deletion broadcast
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(
                 onTaskDeleted,
@@ -93,11 +101,10 @@ class MainActivity : AppCompatActivity() {
                 IntentFilter(ActionReceiver.ACTION_TASK_DELETED)
             )
         }
-    }  // ← Added this closing brace to end onCreate
+    }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Unregister our deletion listener
         unregisterReceiver(onTaskDeleted)
     }
 
