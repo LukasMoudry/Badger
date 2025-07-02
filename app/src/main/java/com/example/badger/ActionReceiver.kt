@@ -1,9 +1,14 @@
+// === badger/ActionReceiver.kt ===
 package com.example.badger
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
 class ActionReceiver : BroadcastReceiver() {
@@ -23,7 +28,7 @@ class ActionReceiver : BroadcastReceiver() {
         // 3) Only handle the “Yes” tap
         if (id < 0 || !done) return
 
-        // 4) Cancel the notification
+        // 4) Cancel the original notification
         NotificationManagerCompat.from(ctx).cancel(id)
 
         // 5) Load, cancel alarm, remove from prefs
@@ -36,5 +41,27 @@ class ActionReceiver : BroadcastReceiver() {
 
         // 6) Notify any in‐app listeners so they can refresh
         ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
+
+        // 7) Show a “Good job!” notification with sprinkle emojis
+        //    on Android O+ we need to (re)create the channel
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    "badger_channel",
+                    "Badger reminders",
+                    NotificationManager.IMPORTANCE_HIGH
+                )
+            )
+        }
+        NotificationManagerCompat.from(ctx).notify(
+            /* notificationId */ id + 1000,
+            NotificationCompat.Builder(ctx, "badger_channel")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Good job!")
+                .setContentText("✨🌟✨ ✨🌟✨")
+                .setAutoCancel(true)
+                .build()
+        )
     }
 }
