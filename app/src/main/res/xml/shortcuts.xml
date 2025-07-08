@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="badger_bubble"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/shortcut_short_label"
+        android:shortcutLongLabel="@string/shortcut_long_label"
+        android:icon="@android:drawable/ic_dialog_alert">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.badger"
+            android:targetClass="com.example.badger.RescheduleActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+</shortcuts>

@@ -10,13 +10,16 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationCompat.DecoratedCustomViewStyle
+import androidx.core.app.NotificationCompat.BubbleMetadata
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.graphics.drawable.IconCompat
+import androidx.core.app.Person
 
 class AlarmReceiver : BroadcastReceiver() {
     companion object {
         private const val CHANNEL_ID = "badger_channel"
         private const val TAG = "AlarmReceiver"
+        private const val SHORTCUT_ID = "badger_bubble"
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -32,22 +35,50 @@ class AlarmReceiver : BroadcastReceiver() {
         // 3) Create NotificationChannel on O+
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "Badger reminders",
-                    NotificationManager.IMPORTANCE_HIGH
-                )
-            )
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Badger reminders",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                enableLights(true)
+                enableVibration(true)
+                setAllowBubbles(true)
+            }
+            nm.createNotificationChannel(channel)
         }
 
-        // 4) Build and show the notification with just a title + actions
-        val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
+        // 4) Build the bubble Intent (opens RescheduleActivity)
+        val bubbleIntent = PendingIntent.getActivity(
+            ctx,
+            id,
+            Intent(ctx, RescheduleActivity::class.java).apply {
+                putExtra("taskId", id)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        // 5) Build the BubbleMetadata
+        val bubbleData = BubbleMetadata.Builder()
+            .setIntent(bubbleIntent)
+            .setIcon(IconCompat.createWithResource(ctx, android.R.drawable.ic_dialog_alert))
+            .setDesiredHeight(600)
+            .build()
+
+        // 6) Build & post the bubble notification
+        val person = Person.Builder()
+            .setName("Badger")
+            .build()
+
+        val notif = NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle("Did you do “${task.name}”?")
-            // ensure heads-up on pre-O devices
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            // two tappable buttons directly under the title
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setShortcutId(SHORTCUT_ID)         // must match your shortcut XML
+            .addPerson(person)                  // conversation style
+            .setBubbleMetadata(bubbleData)      // enable bubble overlay
+            .setAutoCancel(true)
+            // fallback actions in the shade
             .addAction(
                 0, "Yes",
                 PendingIntent.getBroadcast(
@@ -59,21 +90,9 @@ class AlarmReceiver : BroadcastReceiver() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
             )
-            .addAction(
-                0, "Not yet",
-                PendingIntent.getActivity(
-                    ctx,
-                    id * 10 + 2,
-                    Intent(ctx, RescheduleActivity::class.java)
-                        .putExtra("taskId", id),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-            // use the decorated style to ensure actions show in the expanded shade
-            .setStyle(DecoratedCustomViewStyle())
-            .setAutoCancel(true)
+            .addAction(0, "Not yet", bubbleIntent)
+            .build()
 
-        NotificationManagerCompat.from(ctx)
-            .notify(id, builder.build())
+        NotificationManagerCompat.from(ctx).notify(id, notif)
     }
 }
