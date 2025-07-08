@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+app/src/main/res/extracted_text.txt
+app/src/main/java/com/example/extracted_text.txt

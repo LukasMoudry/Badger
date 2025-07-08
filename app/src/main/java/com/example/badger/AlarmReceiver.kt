@@ -1,3 +1,4 @@
+// === badger/AlarmReceiver.kt ===
 package com.example.badger
 
 import android.app.NotificationChannel
@@ -9,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationCompat.DecoratedCustomViewStyle
 import androidx.core.app.NotificationManagerCompat
 
 class AlarmReceiver : BroadcastReceiver() {
@@ -39,36 +41,39 @@ class AlarmReceiver : BroadcastReceiver() {
             )
         }
 
-        // 4) Build and show the notification with actions
-        NotificationManagerCompat.from(ctx)
-            .notify(
-                id,
-                NotificationCompat.Builder(ctx, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                    .setContentTitle("Did you do “${task.name}”?")
-                    .addAction(
-                        0, "Yes",
-                        PendingIntent.getBroadcast(
-                            ctx,
-                            id * 10 + 1,
-                            Intent(ctx, ActionReceiver::class.java)
-                                .putExtra("taskId", id)
-                                .putExtra("done", true),
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                        )
-                    )
-                    .addAction(
-                        0, "Not yet",
-                        PendingIntent.getActivity(
-                            ctx,
-                            id * 10 + 2,
-                            Intent(ctx, RescheduleActivity::class.java)
-                                .putExtra("taskId", id),
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                        )
-                    )
-                    .setAutoCancel(true)
-                    .build()
+        // 4) Build and show the notification with just a title + actions
+        val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("Did you do “${task.name}”?")
+            // ensure heads-up on pre-O devices
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // two tappable buttons directly under the title
+            .addAction(
+                0, "Yes",
+                PendingIntent.getBroadcast(
+                    ctx,
+                    id * 10 + 1,
+                    Intent(ctx, ActionReceiver::class.java)
+                        .putExtra("taskId", id)
+                        .putExtra("done", true),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
             )
+            .addAction(
+                0, "Not yet",
+                PendingIntent.getActivity(
+                    ctx,
+                    id * 10 + 2,
+                    Intent(ctx, RescheduleActivity::class.java)
+                        .putExtra("taskId", id),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            // use the decorated style to ensure actions show in the expanded shade
+            .setStyle(DecoratedCustomViewStyle())
+            .setAutoCancel(true)
+
+        NotificationManagerCompat.from(ctx)
+            .notify(id, builder.build())
     }
 }
