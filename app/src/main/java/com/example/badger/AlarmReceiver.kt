@@ -75,6 +75,10 @@ class AlarmReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setShortcutId(SHORTCUT_ID)         // must match your shortcut XML
+            // When the bubble disappears, tapping the notification should reopen
+            // the reschedule screen. Setting a content intent keeps the
+            // notification interactive on older Android versions.
+            .setContentIntent(bubbleIntent)
             .addPerson(person)                  // conversation style
             .setBubbleMetadata(bubbleData)      // enable bubble overlay
             .setAutoCancel(true)
