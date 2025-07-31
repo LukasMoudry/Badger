@@ -25,8 +25,17 @@ class ActionReceiver : BroadcastReceiver() {
         // 2) Log to confirm we got here
         Log.d("ActionReceiver", "✓ onReceive: id=$id done=$done")
 
-        // 3) Only handle the “Yes” tap
-        if (id < 0 || !done) return
+        // 3) When tapping "Not yet" open the reschedule screen
+        if (id < 0) return
+        if (!done) {
+            ctx.startActivity(
+                Intent(ctx, RescheduleActivity::class.java).apply {
+                    putExtra("taskId", id)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            return
+        }
 
         // 4) Cancel the original notification
         NotificationManagerCompat.from(ctx).cancel(id)
