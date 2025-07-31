@@ -1,4 +1,3 @@
-// === badger/AlarmReceiver.kt ===
 package com.example.badger
 
 import android.app.NotificationChannel
@@ -9,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationCompat.BubbleMetadata
 import androidx.core.app.NotificationManagerCompat
@@ -32,7 +32,7 @@ class AlarmReceiver : BroadcastReceiver() {
         // 2) Load the task by ID
         val task = PrefsHelper.loadTasks(ctx).find { it.id == id } ?: return
 
-        // 3) Create NotificationChannel on O+
+        // 3) Create NotificationChannel (Android O+)
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -42,12 +42,32 @@ class AlarmReceiver : BroadcastReceiver() {
             ).apply {
                 enableLights(true)
                 enableVibration(true)
-                setAllowBubbles(true)
+                setAllowBubbles(true) // allow bubbles below TIRAMISU
             }
             nm.createNotificationChannel(channel)
         }
 
-        // 4) Build the bubble Intent (opens RescheduleActivity)
+        // 4) Prepare "Yes" and "Not yet" intents
+        val yesIntent = PendingIntent.getBroadcast(
+            ctx,
+            id * 10 + 1,
+            Intent(ctx, ActionReceiver::class.java).apply {
+                putExtra("taskId", id)
+                putExtra("done", true)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notYetIntent = PendingIntent.getBroadcast(
+            ctx,
+            id * 10 + 2,
+            Intent(ctx, ActionReceiver::class.java).apply {
+                putExtra("taskId", id)
+                putExtra("done", false)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // 5) Build bubble intent & metadata
         val bubbleIntent = PendingIntent.getActivity(
             ctx,
             id,
@@ -56,47 +76,37 @@ class AlarmReceiver : BroadcastReceiver() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
-
-        // 5) Build the BubbleMetadata
         val bubbleData = BubbleMetadata.Builder()
             .setIntent(bubbleIntent)
             .setIcon(IconCompat.createWithResource(ctx, android.R.drawable.ic_dialog_alert))
             .setDesiredHeight(600)
             .build()
 
-        // 6) Build & post the bubble notification
-        val person = Person.Builder()
-            .setName("Badger")
-            .build()
+        // 6) Inflate & wire custom layout for both collapsed and heads‑up
+        val customView = RemoteViews(ctx.packageName, R.layout.notification_heads_up).apply {
+            setTextViewText(R.id.title, "Did you do \u201C${task.name}\u201D?")
+            setOnClickPendingIntent(R.id.btn_yes, yesIntent)
+            setOnClickPendingIntent(R.id.btn_not_yet, notYetIntent)
+        }
 
-        val notif = NotificationCompat.Builder(ctx, CHANNEL_ID)
+        // 7) Build the notification
+        val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("Did you do “${task.name}”?")
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(customView)
+            .setCustomHeadsUpContentView(customView)
+            .setContentIntent(bubbleIntent)
+            .addPerson(Person.Builder().setName("Badger").build())
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setShortcutId(SHORTCUT_ID)         // must match your shortcut XML
-            // When the bubble disappears, tapping the notification should reopen
-            // the reschedule screen. Setting a content intent keeps the
-            // notification interactive on older Android versions.
-            .setContentIntent(bubbleIntent)
-            .addPerson(person)                  // conversation style
-            .setBubbleMetadata(bubbleData)      // enable bubble overlay
             .setAutoCancel(true)
-            // fallback actions in the shade
-            .addAction(
-                0, "Yes",
-                PendingIntent.getBroadcast(
-                    ctx,
-                    id * 10 + 1,
-                    Intent(ctx, ActionReceiver::class.java)
-                        .putExtra("taskId", id)
-                        .putExtra("done", true),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-            .addAction(0, "Not yet", bubbleIntent)
-            .build()
+            .apply {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    setBubbleMetadata(bubbleData)
+                }
+            }
 
-        NotificationManagerCompat.from(ctx).notify(id, notif)
+        // 8) Post notification
+        NotificationManagerCompat.from(ctx).notify(id, builder.build())
     }
 }
