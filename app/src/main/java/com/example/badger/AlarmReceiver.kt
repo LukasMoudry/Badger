@@ -57,12 +57,11 @@ class AlarmReceiver : BroadcastReceiver() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notYetIntent = PendingIntent.getBroadcast(
+        val notYetIntent = PendingIntent.getActivity(
             ctx,
             id * 10 + 2,
-            Intent(ctx, ActionReceiver::class.java).apply {
+            Intent(ctx, RescheduleActivity::class.java).apply {
                 putExtra("taskId", id)
-                putExtra("done", false)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
