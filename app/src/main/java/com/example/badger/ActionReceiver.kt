@@ -10,6 +10,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import java.util.Calendar
 
 class ActionReceiver : BroadcastReceiver() {
     companion object {
@@ -27,29 +28,54 @@ class ActionReceiver : BroadcastReceiver() {
 
         // 3) When tapping "Not yet" open the reschedule screen
         if (id < 0) return
+
+        val tasks = PrefsHelper.loadTasks(ctx)
+        val task  = tasks.find { it.id == id } ?: return
+
         if (!done) {
-            ctx.startActivity(
-                Intent(ctx, RescheduleActivity::class.java).apply {
-                    putExtra("taskId", id)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            )
+            NotificationManagerCompat.from(ctx).cancel(id)
+            if (task.snoozeMinutes != null) {
+                val delayMs = task.snoozeMinutes!!.toLong() * 60_000
+                task.nextAskEpoch = System.currentTimeMillis() + delayMs
+                val cal = Calendar.getInstance().apply { timeInMillis = task.nextAskEpoch }
+                task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+                task.hour = cal.get(Calendar.HOUR_OF_DAY)
+                task.minute = cal.get(Calendar.MINUTE)
+                PrefsHelper.saveTasks(ctx, tasks)
+                AlarmScheduler.schedule(task, ctx)
+                ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
+            } else {
+                ctx.startActivity(
+                    Intent(ctx, RescheduleActivity::class.java).apply {
+                        putExtra("taskId", id)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }
             return
         }
 
         // 4) Cancel the original notification
         NotificationManagerCompat.from(ctx).cancel(id)
 
-        // 5) Load, cancel alarm, remove from prefs
-        val tasks = PrefsHelper.loadTasks(ctx)
-        val task  = tasks.find { it.id == id } ?: return
-
-        AlarmScheduler.cancel(task, ctx)
-        val updated = tasks.filterNot { it.id == id }
-        PrefsHelper.saveTasks(ctx, updated)
-
-        // 6) Notify any in‐app listeners so they can refresh
-        ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
+        if (task.repeatIntervalDays != null) {
+            val cal = Calendar.getInstance().apply {
+                timeInMillis = task.nextAskEpoch
+                add(Calendar.DAY_OF_YEAR, task.repeatIntervalDays!!)
+            }
+            task.nextAskEpoch = cal.timeInMillis
+            task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+            task.hour = cal.get(Calendar.HOUR_OF_DAY)
+            task.minute = cal.get(Calendar.MINUTE)
+            PrefsHelper.saveTasks(ctx, tasks)
+            AlarmScheduler.schedule(task, ctx)
+            ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
+        } else {
+            AlarmScheduler.cancel(task, ctx)
+            val updated = tasks.filterNot { it.id == id }
+            PrefsHelper.saveTasks(ctx, updated)
+            ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
+        }
 
         // 7) Show a “Good job!” notification with sprinkle emojis
         //    on Android O+ we need to (re)create the channel

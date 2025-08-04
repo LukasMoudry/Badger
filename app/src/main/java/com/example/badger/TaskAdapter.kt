@@ -69,11 +69,10 @@ class TaskAdapter(
             else               -> ""
         }
 
-        holder.timeTv.text = String.format(
-            "%s %02d:%02d",
-            dayName,
-            task.hour,
-            task.minute
-        )
+        val base = String.format("%s %02d:%02d", dayName, task.hour, task.minute)
+        holder.timeTv.text = if (task.repeatIntervalDays != null) {
+            "$base (every ${task.repeatIntervalDays}d)"
+        } else base
+        
     }
 }

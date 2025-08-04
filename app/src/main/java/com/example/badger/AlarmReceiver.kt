@@ -57,14 +57,26 @@ class AlarmReceiver : BroadcastReceiver() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notYetIntent = PendingIntent.getActivity(
-            ctx,
-            id * 10 + 2,
-            Intent(ctx, RescheduleActivity::class.java).apply {
-                putExtra("taskId", id)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val notYetIntent = if (task.snoozeMinutes != null) {
+            PendingIntent.getBroadcast(
+                ctx,
+                id * 10 + 2,
+                Intent(ctx, ActionReceiver::class.java).apply {
+                    putExtra("taskId", id)
+                    putExtra("done", false)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        } else {
+            PendingIntent.getActivity(
+                ctx,
+                id * 10 + 2,
+                Intent(ctx, RescheduleActivity::class.java).apply {
+                    putExtra("taskId", id)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
 
         // 5) Build bubble intent & metadata
         val bubbleIntent = PendingIntent.getActivity(
