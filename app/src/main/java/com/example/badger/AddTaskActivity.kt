@@ -27,6 +27,7 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var repeatSwitch: Switch
     private lateinit var repeatContainer: LinearLayout
     private lateinit var repeatIntervalEt: EditText
+    private lateinit var repeatUnitSpinner: Spinner
     private lateinit var snoozeEt: EditText
     private lateinit var startDateBtn: Button
     private var startDate: Calendar? = null
@@ -47,6 +48,7 @@ class AddTaskActivity : AppCompatActivity() {
         repeatContainer = findViewById(R.id.repeatContainer)
         repeatIntervalEt = findViewById(R.id.repeatIntervalEt)
         snoozeEt        = findViewById(R.id.snoozeEt)
+        repeatUnitSpinner = findViewById(R.id.repeatUnitSpinner)
         startDateBtn    = findViewById(R.id.startDateBtn)
 
         repeatSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -70,6 +72,17 @@ class AddTaskActivity : AppCompatActivity() {
         // Spinner with Monday first
         val days = listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
         daySpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, days)
+
+        repeatUnitSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            listOf(
+                getString(R.string.minutes),
+                getString(R.string.hours),
+                getString(R.string.days)
+            )
+        )
+
 
         // 24-hour spinner mode
         timePicker.setIs24HourView(true)
@@ -112,10 +125,18 @@ class AddTaskActivity : AppCompatActivity() {
                     @Suppress("DEPRECATION")
                     timePicker.currentMinute = t.minute
                 }
-                if (t.repeatIntervalDays != null) {
+                if (t.repeatIntervalMinutes != null) {
                     repeatSwitch.isChecked = true
                     repeatContainer.visibility = View.VISIBLE
                     repeatIntervalEt.setText(t.repeatIntervalDays.toString())
+                    val interval = t.repeatIntervalMinutes!!
+                    val (value, unitIdx) = when {
+                        interval % (60 * 24) == 0 -> interval / (60 * 24) to 2
+                        interval % 60 == 0 -> interval / 60 to 1
+                        else -> interval to 0
+                    }
+                    repeatIntervalEt.setText(value.toString())
+                    repeatUnitSpinner.setSelection(unitIdx)
                     t.snoozeMinutes?.let { snoozeEt.setText((it / (60 * 24)).toString()) }
                     startDate = Calendar.getInstance().apply { timeInMillis = t.nextAskEpoch }
                     startDate?.let { sd ->
@@ -172,13 +193,18 @@ class AddTaskActivity : AppCompatActivity() {
             calendarDay = cal.get(Calendar.DAY_OF_WEEK)
             val nextEpoch = cal.timeInMillis
 
-            val repeatDays = if (repeatSwitch.isChecked) {
-                repeatIntervalEt.text.toString().toIntOrNull().also {
-                    if (it == null) {
-                        repeatIntervalEt.error = "Enter repeat days"
-                        return@setOnClickListener
-                    }
+            val repeatMinutes = if (repeatSwitch.isChecked) {
+                val raw = repeatIntervalEt.text.toString().toIntOrNull()
+                if (raw == null) {
+                    repeatIntervalEt.error = "Enter repeat interval"
+                    return@setOnClickListener
                 }
+                val multiplier = when (repeatUnitSpinner.selectedItemPosition) {
+                    0 -> 1
+                    1 -> 60
+                    else -> 60 * 24
+                }
+                raw * multiplier
             } else null
 
             val snoozeDays = if (repeatSwitch.isChecked)
@@ -188,7 +214,7 @@ class AddTaskActivity : AppCompatActivity() {
             if (editingTask == null) {
                 // Create new
                 val newId = (tasks.maxOfOrNull { it.id } ?: -1) + 1
-                val t = Task(newId, name, calendarDay, h, m, nextEpoch, repeatDays, snoozeMinutes)
+                val t = Task(newId, name, calendarDay, h, m, nextEpoch, repeatMinutes, snoozeMinutes)
                 tasks.add(t)
                 AlarmScheduler.schedule(t, this)
             } else {
@@ -200,7 +226,7 @@ class AddTaskActivity : AppCompatActivity() {
                     t.hour         = h
                     t.minute       = m
                     t.nextAskEpoch = nextEpoch
-                    t.repeatIntervalDays = repeatDays
+                    t.repeatIntervalMinutes = repeatMinutes
                     t.snoozeMinutes = snoozeMinutes
                     AlarmScheduler.schedule(t, this)
                 }

@@ -58,10 +58,9 @@ class ActionReceiver : BroadcastReceiver() {
         // 4) Cancel the original notification
         NotificationManagerCompat.from(ctx).cancel(id)
 
-        if (task.repeatIntervalDays != null) {
+        if (task.repeatIntervalMinutes != null) {
             val cal = Calendar.getInstance().apply {
-                timeInMillis = task.nextAskEpoch
-                add(Calendar.DAY_OF_YEAR, task.repeatIntervalDays!!)
+                timeInMillis = task.nextAskEpoch + task.repeatIntervalMinutes!!.toLong() * 60_000
             }
             task.nextAskEpoch = cal.timeInMillis
             task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)

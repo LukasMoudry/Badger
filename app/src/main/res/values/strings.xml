@@ -4,7 +4,10 @@
     <string name="shortcut_short_label">Badger</string>
     <string name="shortcut_long_label">Badger reminder</string>
     <string name="repeated_task">Repeated task</string>
-    <string name="repeat_every_days">Repeat every (days)</string>
+    <string name="repeat_every">Repeat every</string>
+    <string name="minutes">Minutes</string>
+    <string name="hours">Hours</string>
+    <string name="days">Days</string>
     <string name="snooze_after_days">Remind again after (days)</string>
     <string name="start_date">Start date</string>
 </resources>

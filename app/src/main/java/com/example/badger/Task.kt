@@ -8,5 +8,6 @@ data class Task(
     var minute: Int,        // 0–59
     var nextAskEpoch: Long,  // ms since epoch of next alarm
     var repeatIntervalDays: Int? = null, // repeat every N days, null = no repeat
+    var repeatIntervalMinutes: Int? = null, // repeat every N minutes, null = no repeat
     var snoozeMinutes: Int? = null       // remind again after N minutes if not done
 )
