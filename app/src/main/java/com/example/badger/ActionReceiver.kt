@@ -26,7 +26,7 @@ class ActionReceiver : BroadcastReceiver() {
         // 2) Log to confirm we got here
         Log.d("ActionReceiver", "✓ onReceive: id=$id done=$done")
 
-        // 3) When tapping "Not yet" open the reschedule screen
+        // 3) Handle "Not yet" – snooze, auto-repeat, or manual reschedule
         if (id < 0) return
 
         val tasks = PrefsHelper.loadTasks(ctx)
@@ -34,23 +34,37 @@ class ActionReceiver : BroadcastReceiver() {
 
         if (!done) {
             NotificationManagerCompat.from(ctx).cancel(id)
-            if (task.snoozeMinutes != null) {
-                val delayMs = task.snoozeMinutes!!.toLong() * 60_000
-                task.nextAskEpoch = System.currentTimeMillis() + delayMs
-                val cal = Calendar.getInstance().apply { timeInMillis = task.nextAskEpoch }
-                task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
-                task.hour = cal.get(Calendar.HOUR_OF_DAY)
-                task.minute = cal.get(Calendar.MINUTE)
-                PrefsHelper.saveTasks(ctx, tasks)
-                AlarmScheduler.schedule(task, ctx)
-                ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
-            } else {
-                ctx.startActivity(
-                    Intent(ctx, RescheduleActivity::class.java).apply {
-                        putExtra("taskId", id)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                )
+            when {
+                task.snoozeMinutes != null -> {
+                    val delayMs = task.snoozeMinutes!!.toLong() * 60_000
+                    task.nextAskEpoch = System.currentTimeMillis() + delayMs
+                    val cal = Calendar.getInstance().apply { timeInMillis = task.nextAskEpoch }
+                    task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+                    task.hour = cal.get(Calendar.HOUR_OF_DAY)
+                    task.minute = cal.get(Calendar.MINUTE)
+                    PrefsHelper.saveTasks(ctx, tasks)
+                    AlarmScheduler.schedule(task, ctx)
+                    ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
+                }
+                task.repeatIntervalMinutes != null -> {
+                    val cal = Calendar.getInstance().apply {
+                        timeInMillis = task.nextAskEpoch + task.repeatIntervalMinutes!!.toLong() * 60_000                    }
+                    task.nextAskEpoch = cal.timeInMillis
+                    task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+                    task.hour = cal.get(Calendar.HOUR_OF_DAY)
+                    task.minute = cal.get(Calendar.MINUTE)
+                    PrefsHelper.saveTasks(ctx, tasks)
+                    AlarmScheduler.schedule(task, ctx)
+                    ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
+                }
+                else -> {
+                    ctx.startActivity(
+                        Intent(ctx, RescheduleActivity::class.java).apply {
+                            putExtra("taskId", id)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    )
+                }
             }
             return
         }
