@@ -8,6 +8,6 @@
     <string name="minutes">Minutes</string>
     <string name="hours">Hours</string>
     <string name="days">Days</string>
-    <string name="snooze_after_days">Remind again after (days)</string>
+    <string name="snooze_after">Remind again after</string>
     <string name="start_date">Start date</string>
 </resources>

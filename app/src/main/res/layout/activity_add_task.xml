@@ -66,13 +66,26 @@
                 android:layout_height="wrap_content" />
         </LinearLayout>
 
-        <EditText
-            android:id="@+id/snoozeEt"
+        <LinearLayout
+            android:id="@+id/snoozeContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/snooze_after_days"
-            android:inputType="number"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/snoozeEt"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/snooze_after"
+                android:inputType="number" />
+
+            <Spinner
+                android:id="@+id/snoozeUnitSpinner"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/startDateBtn"

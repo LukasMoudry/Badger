@@ -29,6 +29,7 @@ class AddTaskActivity : AppCompatActivity() {
     private lateinit var repeatIntervalEt: EditText
     private lateinit var repeatUnitSpinner: Spinner
     private lateinit var snoozeEt: EditText
+    private lateinit var snoozeUnitSpinner: Spinner
     private lateinit var startDateBtn: Button
     private var startDate: Calendar? = null
 
@@ -49,6 +50,7 @@ class AddTaskActivity : AppCompatActivity() {
         repeatIntervalEt = findViewById(R.id.repeatIntervalEt)
         snoozeEt        = findViewById(R.id.snoozeEt)
         repeatUnitSpinner = findViewById(R.id.repeatUnitSpinner)
+        snoozeUnitSpinner = findViewById(R.id.snoozeUnitSpinner)
         startDateBtn    = findViewById(R.id.startDateBtn)
 
         repeatSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -73,7 +75,7 @@ class AddTaskActivity : AppCompatActivity() {
         val days = listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
         daySpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, days)
 
-        repeatUnitSpinner.adapter = ArrayAdapter(
+        val unitsAdapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
             listOf(
@@ -82,7 +84,8 @@ class AddTaskActivity : AppCompatActivity() {
                 getString(R.string.days)
             )
         )
-
+        repeatUnitSpinner.adapter = unitsAdapter
+        snoozeUnitSpinner.adapter = unitsAdapter
 
         // 24-hour spinner mode
         timePicker.setIs24HourView(true)
@@ -137,7 +140,15 @@ class AddTaskActivity : AppCompatActivity() {
                     }
                     repeatIntervalEt.setText(value.toString())
                     repeatUnitSpinner.setSelection(unitIdx)
-                    t.snoozeMinutes?.let { snoozeEt.setText((it / (60 * 24)).toString()) }
+                    t.snoozeMinutes?.let { sm ->
+                        val (sVal, sUnit) = when {
+                            sm % (60 * 24) == 0 -> sm / (60 * 24) to 2
+                            sm % 60 == 0 -> sm / 60 to 1
+                            else -> sm to 0
+                        }
+                        snoozeEt.setText(sVal.toString())
+                        snoozeUnitSpinner.setSelection(sUnit)
+                    }
                     startDate = Calendar.getInstance().apply { timeInMillis = t.nextAskEpoch }
                     startDate?.let { sd ->
                         startDateBtn.text = String.format(
@@ -207,9 +218,17 @@ class AddTaskActivity : AppCompatActivity() {
                 raw * multiplier
             } else null
 
-            val snoozeDays = if (repeatSwitch.isChecked)
-                snoozeEt.text.toString().toIntOrNull() else null
-            val snoozeMinutes = snoozeDays?.let { it * 24 * 60 }
+            val snoozeMinutes = if (repeatSwitch.isChecked) {
+                val raw = snoozeEt.text.toString().toIntOrNull()
+                raw?.let {
+                    val multiplier = when (snoozeUnitSpinner.selectedItemPosition) {
+                        0 -> 1
+                        1 -> 60
+                        else -> 60 * 24
+                    }
+                    it * multiplier
+                }
+            } else null
 
             if (editingTask == null) {
                 // Create new
