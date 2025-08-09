@@ -233,7 +233,16 @@ class AddTaskActivity : AppCompatActivity() {
             if (editingTask == null) {
                 // Create new
                 val newId = (tasks.maxOfOrNull { it.id } ?: -1) + 1
-                val t = Task(newId, name, calendarDay, h, m, nextEpoch, repeatMinutes, snoozeMinutes)
+                val t = Task(
+                    newId,
+                    name,
+                    calendarDay,
+                    h,
+                    m,
+                    nextEpoch,
+                    repeatIntervalMinutes = repeatMinutes,
+                    snoozeMinutes = snoozeMinutes
+                )
                 tasks.add(t)
                 AlarmScheduler.schedule(t, this)
             } else {
