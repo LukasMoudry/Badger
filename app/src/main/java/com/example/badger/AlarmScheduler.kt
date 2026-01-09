@@ -35,6 +35,7 @@ object AlarmScheduler {
                 task.nextAskEpoch,
                 pending
             )
+            Log.d(TAG, "Scheduled exact alarm for task ${task.id} (${task.name}) at ${task.nextAskEpoch}")
         } catch (sec: SecurityException) {
             Log.w(TAG, "Exact alarm denied; falling back to inexact", sec)
             alarmMgr.setAndAllowWhileIdle(
@@ -42,6 +43,7 @@ object AlarmScheduler {
                 task.nextAskEpoch,
                 pending
             )
+            Log.d(TAG, "Scheduled inexact alarm for task ${task.id} (${task.name}) at ${task.nextAskEpoch}")
         }
     }
 
@@ -64,6 +66,9 @@ object AlarmScheduler {
         if (pending != null) {
             alarmMgr.cancel(pending)
             pending.cancel()
+            Log.d(TAG, "Cancelled alarm for task ${task.id} (${task.name})")
+        } else {
+            Log.d(TAG, "No existing alarm found for task ${task.id}")
         }
     }
 }

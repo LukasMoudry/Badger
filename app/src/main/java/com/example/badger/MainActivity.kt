@@ -7,8 +7,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -18,13 +21,14 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 class MainActivity : AppCompatActivity() {
     private lateinit var adapter: TaskAdapter
+    private var isReceiverRegistered = false
 
     // Permission launcher for POST_NOTIFICATIONS on Android 13+
     private val askNotifPerm = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op if denied */ }
 
-    // Receiver to catch “task deleted” broadcasts and refresh UI
+    // Receiver to catch "task deleted" broadcasts and refresh UI
     private val onTaskDeleted = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             reloadListAndSchedule()
@@ -57,12 +61,19 @@ class MainActivity : AppCompatActivity() {
             onItemAction = { task, action ->
                 when (action) {
                     TaskAdapter.Action.DELETE -> {
-                        // DELETE
-                        AlarmScheduler.cancel(task, this)
-                        val remaining = PrefsHelper.loadTasks(this)
-                            .filterNot { it.id == task.id }
-                        PrefsHelper.saveTasks(this, remaining)
-                        adapter.submitList(remaining)
+                        // Show confirmation dialog before deleting
+                        AlertDialog.Builder(this)
+                            .setTitle("Delete Task")
+                            .setMessage("Are you sure you want to delete \"${task.name}\"?")
+                            .setPositiveButton("Delete") { _, _ ->
+                                AlarmScheduler.cancel(task, this)
+                                val remaining = PrefsHelper.loadTasks(this)
+                                    .filterNot { it.id == task.id }
+                                PrefsHelper.saveTasks(this, remaining)
+                                adapter.submitList(remaining)
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
                     }
                     TaskAdapter.Action.EDIT -> {
                         // EDIT via edit button
@@ -101,11 +112,19 @@ class MainActivity : AppCompatActivity() {
                 IntentFilter(ActionReceiver.ACTION_TASK_DELETED)
             )
         }
+        isReceiverRegistered = true
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(onTaskDeleted)
+        try {
+            if (isReceiverRegistered) {
+                unregisterReceiver(onTaskDeleted)
+                isReceiverRegistered = false
+            }
+        } catch (e: IllegalArgumentException) {
+            // Receiver was already unregistered, ignore
+        }
     }
 
     override fun onResume() {
@@ -117,5 +136,9 @@ class MainActivity : AppCompatActivity() {
         val list = PrefsHelper.loadTasks(this)
         adapter.submitList(list)
         list.forEach { AlarmScheduler.schedule(it, this) }
+
+        // Show/hide empty state
+        val emptyState = findViewById<TextView>(R.id.emptyState)
+        emptyState.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
     }
 }

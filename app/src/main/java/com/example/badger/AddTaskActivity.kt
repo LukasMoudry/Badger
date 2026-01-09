@@ -12,7 +12,9 @@ import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TimePicker
 import androidx.appcompat.app.AppCompatActivity
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 class AddTaskActivity : AppCompatActivity() {
     companion object {
@@ -63,7 +65,8 @@ class AddTaskActivity : AppCompatActivity() {
                 this,
                 { _, y, m, d ->
                     startDate = Calendar.getInstance().apply { set(y, m, d) }
-                    startDateBtn.text = String.format("%d/%d/%d", d, m + 1, y)
+                    val dateFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+                    startDateBtn.text = dateFormat.format(startDate!!.time)
                 },
                 cal.get(Calendar.YEAR),
                 cal.get(Calendar.MONTH),
@@ -104,34 +107,17 @@ class AddTaskActivity : AppCompatActivity() {
         if (editingTask == null) {
             // New: default to now
             daySpinner.setSelection(todayIdx)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                timePicker.hour   = now.get(Calendar.HOUR_OF_DAY)
-                timePicker.minute = now.get(Calendar.MINUTE)
-            } else {
-                @Suppress("DEPRECATION")
-                timePicker.currentHour   = now.get(Calendar.HOUR_OF_DAY)
-                @Suppress("DEPRECATION")
-                timePicker.currentMinute = now.get(Calendar.MINUTE)
-            }
+            timePicker.setTimeCompat(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
         } else {
             // Editing: fill from task
             editingTask!!.let { t ->
                 nameEt.setText(t.name)
                 val idx = (t.dayOfWeek + 5) % 7
                 daySpinner.setSelection(idx)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    timePicker.hour   = t.hour
-                    timePicker.minute = t.minute
-                } else {
-                    @Suppress("DEPRECATION")
-                    timePicker.currentHour   = t.hour
-                    @Suppress("DEPRECATION")
-                    timePicker.currentMinute = t.minute
-                }
+                timePicker.setTimeCompat(t.hour, t.minute)
                 if (t.repeatIntervalMinutes != null) {
                     repeatSwitch.isChecked = true
                     repeatContainer.visibility = View.VISIBLE
-                    repeatIntervalEt.setText(t.repeatIntervalDays.toString())
                     val interval = t.repeatIntervalMinutes!!
                     val (value, unitIdx) = when {
                         interval % (60 * 24) == 0 -> interval / (60 * 24) to 2
@@ -151,12 +137,8 @@ class AddTaskActivity : AppCompatActivity() {
                     }
                     startDate = Calendar.getInstance().apply { timeInMillis = t.nextAskEpoch }
                     startDate?.let { sd ->
-                        startDateBtn.text = String.format(
-                            "%d/%d/%d",
-                            sd.get(Calendar.DAY_OF_MONTH),
-                            sd.get(Calendar.MONTH) + 1,
-                            sd.get(Calendar.YEAR)
-                        )
+                        val dateFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+                        startDateBtn.text = dateFormat.format(sd.time)
                     }
                 }
             }
@@ -175,14 +157,8 @@ class AddTaskActivity : AppCompatActivity() {
             else Calendar.MONDAY + (customDay - 1)
 
             // Read time
-            val (h, m) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                timePicker.hour to timePicker.minute
-            } else {
-                @Suppress("DEPRECATION")
-                timePicker.currentHour to
-                        @Suppress("DEPRECATION")
-                        timePicker.currentMinute
-            }
+            val h = timePicker.getHourCompat()
+            val m = timePicker.getMinuteCompat()
 
             // Compute nextAskEpoch
             val cal = Calendar.getInstance().apply {
@@ -206,33 +182,57 @@ class AddTaskActivity : AppCompatActivity() {
 
             val repeatMinutes = if (repeatSwitch.isChecked) {
                 val raw = repeatIntervalEt.text.toString().toIntOrNull()
-                if (raw == null) {
-                    repeatIntervalEt.error = "Enter repeat interval"
+                if (raw == null || raw <= 0) {
+                    repeatIntervalEt.error = "Enter a positive number"
                     return@setOnClickListener
                 }
                 val multiplier = when (repeatUnitSpinner.selectedItemPosition) {
-                    0 -> 1
-                    1 -> 60
-                    else -> 60 * 24
+                    0 -> 1      // minutes
+                    1 -> 60     // hours
+                    else -> 60 * 24  // days
                 }
-                raw * multiplier
+                val totalMinutes = raw * multiplier
+                // Validate reasonable range: 1 minute to 365 days
+                if (totalMinutes < 1) {
+                    repeatIntervalEt.error = "Interval too short"
+                    return@setOnClickListener
+                }
+                if (totalMinutes > 365 * 24 * 60) {
+                    repeatIntervalEt.error = "Interval too long (max 365 days)"
+                    return@setOnClickListener
+                }
+                totalMinutes
             } else null
 
             val snoozeMinutes = if (repeatSwitch.isChecked) {
                 val raw = snoozeEt.text.toString().toIntOrNull()
                 raw?.let {
-                    val multiplier = when (snoozeUnitSpinner.selectedItemPosition) {
-                        0 -> 1
-                        1 -> 60
-                        else -> 60 * 24
+                    if (it <= 0) {
+                        snoozeEt.error = "Enter a positive number"
+                        return@setOnClickListener
                     }
-                    it * multiplier
+                    val multiplier = when (snoozeUnitSpinner.selectedItemPosition) {
+                        0 -> 1      // minutes
+                        1 -> 60     // hours
+                        else -> 60 * 24  // days
+                    }
+                    val totalMinutes = it * multiplier
+                    // Validate reasonable range: 1 minute to 30 days
+                    if (totalMinutes < 1) {
+                        snoozeEt.error = "Snooze too short"
+                        return@setOnClickListener
+                    }
+                    if (totalMinutes > 30 * 24 * 60) {
+                        snoozeEt.error = "Snooze too long (max 30 days)"
+                        return@setOnClickListener
+                    }
+                    totalMinutes
                 }
             } else null
 
             if (editingTask == null) {
-                // Create new
-                val newId = (tasks.maxOfOrNull { it.id } ?: -1) + 1
+                // Create new - use timestamp-based ID for uniqueness
+                val newId = System.currentTimeMillis().toInt() and 0x7FFFFFFF  // Positive int from timestamp
                 val t = Task(
                     newId,
                     name,

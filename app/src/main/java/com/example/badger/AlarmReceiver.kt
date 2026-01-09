@@ -20,6 +20,9 @@ class AlarmReceiver : BroadcastReceiver() {
         private const val CHANNEL_ID = "badger_channel"
         private const val TAG = "AlarmReceiver"
         private const val SHORTCUT_ID = "badger_bubble"
+        private const val YES_BUTTON_BASE = 10000
+        private const val NOT_YET_BUTTON_BASE = 20000
+        private const val BUBBLE_INTENT_BASE = 30000
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -47,10 +50,10 @@ class AlarmReceiver : BroadcastReceiver() {
             nm.createNotificationChannel(channel)
         }
 
-        // 4) Prepare "Yes" and "Not yet" intents
+        // 4) Prepare "Yes" and "Not yet" intents with unique request codes
         val yesIntent = PendingIntent.getBroadcast(
             ctx,
-            id * 10 + 1,
+            YES_BUTTON_BASE + id,
             Intent(ctx, ActionReceiver::class.java).apply {
                 putExtra("taskId", id)
                 putExtra("done", true)
@@ -60,7 +63,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val notYetIntent = if (task.snoozeMinutes != null || task.repeatIntervalMinutes != null) {
             PendingIntent.getBroadcast(
                 ctx,
-                id * 10 + 2,
+                NOT_YET_BUTTON_BASE + id,
                 Intent(ctx, ActionReceiver::class.java).apply {
                     putExtra("taskId", id)
                     putExtra("done", false)
@@ -70,7 +73,7 @@ class AlarmReceiver : BroadcastReceiver() {
         } else {
             PendingIntent.getActivity(
                 ctx,
-                id * 10 + 2,
+                NOT_YET_BUTTON_BASE + id,
                 Intent(ctx, RescheduleActivity::class.java).apply {
                     putExtra("taskId", id)
                 },
@@ -81,7 +84,7 @@ class AlarmReceiver : BroadcastReceiver() {
         // 5) Build bubble intent & metadata
         val bubbleIntent = PendingIntent.getActivity(
             ctx,
-            id,
+            BUBBLE_INTENT_BASE + id,
             Intent(ctx, RescheduleActivity::class.java).apply {
                 putExtra("taskId", id)
             },

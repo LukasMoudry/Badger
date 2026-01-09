@@ -6,6 +6,17 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Empty state message -->
+    <TextView
+        android:id="@+id/emptyState"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="No tasks yet.\nTap + to add your first task"
+        android:textSize="16sp"
+        android:textAlignment="center"
+        android:visibility="gone"/>
+
     <!-- 1) This is your list of tasks -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler"

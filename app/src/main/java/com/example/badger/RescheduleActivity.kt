@@ -54,15 +54,7 @@ class RescheduleActivity : AppCompatActivity() {
 
         // 6) 24-hour TimePicker
         timePicker.setIs24HourView(true)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            timePicker.hour   = task.hour
-            timePicker.minute = task.minute
-        } else {
-            @Suppress("DEPRECATION")
-            timePicker.currentHour   = task.hour
-            @Suppress("DEPRECATION")
-            timePicker.currentMinute = task.minute
-        }
+        timePicker.setTimeCompat(task.hour, task.minute)
 
         // 7) Save – compute nextAskEpoch exactly as in AddTaskActivity
         saveBtn.setOnClickListener {
@@ -72,14 +64,8 @@ class RescheduleActivity : AppCompatActivity() {
             else
                 Calendar.MONDAY + (customDay - 1)
 
-            val (h, m) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                timePicker.hour to timePicker.minute
-            } else {
-                @Suppress("DEPRECATION")
-                timePicker.currentHour to
-                        @Suppress("DEPRECATION")
-                        timePicker.currentMinute
-            }
+            val h = timePicker.getHourCompat()
+            val m = timePicker.getMinuteCompat()
 
             val cal = Calendar.getInstance().apply {
                 set(Calendar.DAY_OF_WEEK, calendarDay)

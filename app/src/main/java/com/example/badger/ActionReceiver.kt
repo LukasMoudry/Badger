@@ -48,7 +48,8 @@ class ActionReceiver : BroadcastReceiver() {
                 }
                 task.repeatIntervalMinutes != null -> {
                     val cal = Calendar.getInstance().apply {
-                        timeInMillis = task.nextAskEpoch + task.repeatIntervalMinutes!!.toLong() * 60_000                    }
+                        timeInMillis = task.nextAskEpoch + task.repeatIntervalMinutes!!.toLong() * 60_000
+                    }
                     task.nextAskEpoch = cal.timeInMillis
                     task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
                     task.hour = cal.get(Calendar.HOUR_OF_DAY)
