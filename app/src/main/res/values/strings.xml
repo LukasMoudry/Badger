@@ -9,5 +9,8 @@
     <string name="hours">Hours</string>
     <string name="days">Days</string>
     <string name="snooze_after">Remind again after</string>
+    <string name="weekday_snooze_after">If weekday, remind again after</string>
+    <string name="weekend_snooze_after">If weekend, remind again after</string>
+    <string name="default_snooze_after">Default remind again after</string>
     <string name="start_date">Start date</string>
 </resources>

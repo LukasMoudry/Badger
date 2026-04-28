@@ -77,6 +77,7 @@ class RescheduleActivity : AppCompatActivity() {
                 }
             }
             task.nextAskEpoch = cal.timeInMillis
+            task.scheduledEpoch = cal.timeInMillis
             task.dayOfWeek    = calendarDay
             task.hour         = h
             task.minute       = m

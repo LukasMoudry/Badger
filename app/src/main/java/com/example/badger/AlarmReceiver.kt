@@ -60,7 +60,7 @@ class AlarmReceiver : BroadcastReceiver() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notYetIntent = if (task.snoozeMinutes != null || task.repeatIntervalMinutes != null) {
+        val notYetIntent = if (ReminderTiming.resolveSnoozeMinutes(task) != null || task.repeatIntervalMinutes != null) {
             PendingIntent.getBroadcast(
                 ctx,
                 NOT_YET_BUTTON_BASE + id,

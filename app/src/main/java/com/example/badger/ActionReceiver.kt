@@ -10,7 +10,6 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import java.util.Calendar
 
 class ActionReceiver : BroadcastReceiver() {
     companion object {
@@ -35,25 +34,17 @@ class ActionReceiver : BroadcastReceiver() {
         if (!done) {
             NotificationManagerCompat.from(ctx).cancel(id)
             when {
-                task.snoozeMinutes != null -> {
-                    val delayMs = task.snoozeMinutes!!.toLong() * 60_000
+                ReminderTiming.resolveSnoozeMinutes(task) != null -> {
+                    val delayMs = ReminderTiming.resolveSnoozeMinutes(task)!!.toLong() * 60_000
                     task.nextAskEpoch = System.currentTimeMillis() + delayMs
-                    val cal = Calendar.getInstance().apply { timeInMillis = task.nextAskEpoch }
-                    task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
-                    task.hour = cal.get(Calendar.HOUR_OF_DAY)
-                    task.minute = cal.get(Calendar.MINUTE)
                     PrefsHelper.saveTasks(ctx, tasks)
                     AlarmScheduler.schedule(task, ctx)
                     ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
                 }
                 task.repeatIntervalMinutes != null -> {
-                    val cal = Calendar.getInstance().apply {
-                        timeInMillis = task.nextAskEpoch + task.repeatIntervalMinutes!!.toLong() * 60_000
-                    }
-                    task.nextAskEpoch = cal.timeInMillis
-                    task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
-                    task.hour = cal.get(Calendar.HOUR_OF_DAY)
-                    task.minute = cal.get(Calendar.MINUTE)
+                    val nextOccurrence = ReminderTiming.advanceToNextOccurrence(task)
+                    task.scheduledEpoch = nextOccurrence
+                    task.nextAskEpoch = nextOccurrence
                     PrefsHelper.saveTasks(ctx, tasks)
                     AlarmScheduler.schedule(task, ctx)
                     ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))
@@ -74,13 +65,9 @@ class ActionReceiver : BroadcastReceiver() {
         NotificationManagerCompat.from(ctx).cancel(id)
 
         if (task.repeatIntervalMinutes != null) {
-            val cal = Calendar.getInstance().apply {
-                timeInMillis = task.nextAskEpoch + task.repeatIntervalMinutes!!.toLong() * 60_000
-            }
-            task.nextAskEpoch = cal.timeInMillis
-            task.dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
-            task.hour = cal.get(Calendar.HOUR_OF_DAY)
-            task.minute = cal.get(Calendar.MINUTE)
+            val nextOccurrence = ReminderTiming.advanceToNextOccurrence(task)
+            task.scheduledEpoch = nextOccurrence
+            task.nextAskEpoch = nextOccurrence
             PrefsHelper.saveTasks(ctx, tasks)
             AlarmScheduler.schedule(task, ctx)
             ctx.sendBroadcast(Intent(ACTION_TASK_DELETED))

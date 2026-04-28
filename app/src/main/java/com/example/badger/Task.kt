@@ -7,6 +7,9 @@ data class Task(
     var hour: Int,          // 0–23
     var minute: Int,        // 0–59
     var nextAskEpoch: Long,  // ms since epoch of next alarm
+    var scheduledEpoch: Long = nextAskEpoch, // current occurrence anchor; snoozes must not mutate it
     var repeatIntervalMinutes: Int? = null, // repeat every N minutes, null = no repeat
-    var snoozeMinutes: Int? = null       // remind again after N minutes if not done
+    var snoozeMinutes: Int? = null,      // legacy/default remind-again delay
+    var weekdaySnoozeMinutes: Int? = null,
+    var weekendSnoozeMinutes: Int? = null
 )

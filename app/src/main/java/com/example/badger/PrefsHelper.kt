@@ -14,7 +14,11 @@ object PrefsHelper {
     fun loadTasks(ctx: Context): MutableList<Task> {
         val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val json = prefs.getString(KEY_TASKS, null) ?: return mutableListOf()
-        return gson.fromJson(json, listType)
+        return gson.fromJson<MutableList<Task>>(json, listType).onEach { task ->
+            if (task.scheduledEpoch == 0L) {
+                task.scheduledEpoch = task.nextAskEpoch
+            }
+        }
     }
 
     fun saveTasks(ctx: Context, tasks: List<Task>) {
